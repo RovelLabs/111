@@ -158,6 +158,13 @@ jobs:
         with:
           name: launcher
           path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-test
+          path: game-test
+      - name: Скриншот главного меню из проверки
+        run: |
+          if [ -f game-test/screenshot.png ]; then cp game-test/screenshot.png dist/menu-preview.png; fi
       - name: Опубликовать релиз
         env:
           GH_TOKEN: ${{ github.token }}
@@ -169,7 +176,10 @@ jobs:
 
           Как играть: скачайте PulseClient.exe, запустите и нажмите «Установить» — Java, Minecraft 1.20.1, Fabric и клиент скачаются сами. Потом введите ник и нажмите «Играть».
 
-          Лаунчер обновляется сам при запуске.
+          Лаунчер обновляется сам при запуске, а кнопка «Обновить» подтягивает новую версию вручную.
+
+          Главное меню (снимок с автоматической проверки на Windows):
+          ![Главное меню](https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/menu-preview.png)
           NOTES
           ls -la dist
           gh release create "v$VERSION" dist/* \
