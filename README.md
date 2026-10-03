@@ -4,7 +4,8 @@
 Без игровых преимуществ — см. [исследование](docs/research-visual-clients.md).
 
 ## Установка (для игроков)
-1. Скачать `VisualClientInstaller.exe` из [последнего релиза](https://github.com/RovelLabs/111/releases/latest).
+1. Скачать `VisualClientInstaller.exe` из [последнего релиза](https://github.com/RovelLabs/111/releases/latest)
+   (или запустить `install.bat` из репозитория — он сам скачает свежий установщик и откроет его).
 2. Запустить и нажать **«Установить»**: на рабочем столе появится папка `Visual Client` (папка игры),
    в лаунчер Minecraft добавится профиль **Visual Client** с Fabric 1.20.1.
 3. Открыть официальный лаунчер Minecraft, выбрать профиль «Visual Client», нажать «Играть».
@@ -19,6 +20,11 @@
 что и откуда качать.
 
 ## Запуск для разработки
+Самый простой способ — дважды кликнуть **`run-dev.bat`**: он сам найдёт Java 17+ или скачает
+Java 21 в папку `.jdk` (без прав администратора) и запустит игру с клиентом. Ничего ставить заранее
+не нужно. `run-dev.bat build` — собрать jar.
+
+Через IDE:
 1. Установить **JDK 17 или 21** и **IntelliJ IDEA**.
 2. Открыть папку проекта в IntelliJ, дождаться импорта Gradle (первый раз качается Minecraft — несколько минут).
 3. Запустить `./gradlew runClient` (Windows: `gradlew.bat runClient`) или конфигурацию **Minecraft Client**.
