@@ -49,6 +49,7 @@ if mesa:
         shutil.copy2(dll, java_bin / dll.name)
     print("Mesa скопирована:", sorted(p.name for p in Path(mesa).glob("*.dll")))
 
+game.ensure_default_options()
 command = game.build_command(info, "CiTester", 2048, console=True)
 log_path = home_dir() / "ci-game.log"
 with open(log_path, "w", encoding="utf-8", errors="replace") as log:

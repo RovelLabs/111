@@ -422,8 +422,26 @@ def build_command(release_info: dict, nickname: str, ram_mb: int, console: bool 
     return command
 
 
+DEFAULT_OPTIONS = {
+    "onboardAccessibility": "false",  # без экрана «специальных возможностей» при первом запуске
+    "lang": "ru_ru",
+    "skipMultiplayerWarning": "true",
+    "tutorialStep": "none",
+}
+
+
+def ensure_default_options() -> None:
+    """Первый запуск: создаём options.txt с нашими настройками. Потом игрок меняет их сам в игре."""
+    options = game_dir() / "options.txt"
+    if options.exists():
+        return
+    options.parent.mkdir(parents=True, exist_ok=True)
+    options.write_text("".join(f"{k}:{v}\n" for k, v in DEFAULT_OPTIONS.items()), encoding="utf-8")
+
+
 def launch(release_info: dict, nickname: str, ram_mb: int) -> subprocess.Popen:
     game_dir().mkdir(parents=True, exist_ok=True)
+    ensure_default_options()
     log_path = home_dir() / "logs" / "game-output.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log = open(log_path, "w", encoding="utf-8", errors="replace")

@@ -22,7 +22,7 @@ public abstract class TitleScreenMixin extends Screen {
             target = "Lnet/minecraft/client/gui/RotatingCubeMapRenderer;render(FF)V"))
     private void pulseclient$background(RotatingCubeMapRenderer panorama, float delta, float alpha,
                                         DrawContext context, int mouseX, int mouseY, float tickDelta) {
-        PulseMenu.drawBackground(context, this.width, this.height, mouseX, mouseY, alpha);
+        PulseMenu.drawTitleBackground(context, this.width, this.height, mouseX, mouseY, alpha);
     }
 
     @Redirect(method = "render", at = @At(value = "INVOKE",

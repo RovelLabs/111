@@ -26,11 +26,16 @@ public final class PulseMenu {
     private PulseMenu() {
     }
 
-    public static void drawBackground(DrawContext context, int width, int height, int mouseX, int mouseY, float alpha) {
+    public static void drawTitleBackground(DrawContext context, int width, int height, int mouseX, int mouseY,
+                                           float alpha) {
         if (!announced) {
             announced = true;
             PulseClient.LOGGER.info("Pulse главное меню активно");
         }
+        drawBackground(context, width, height, mouseX, mouseY, alpha);
+    }
+
+    public static void drawBackground(DrawContext context, int width, int height, int mouseX, int mouseY, float alpha) {
         long elapsed = Util.getMeasuringTimeMs() - START;
         int index = (int) ((elapsed / SHOW_MS + FIRST) % BACKGROUNDS.length);
         long inSlide = elapsed % SHOW_MS;
