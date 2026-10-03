@@ -389,7 +389,15 @@ class Launcher(ctk.CTk):
 
 
 def main() -> None:
-    Launcher().mainloop()
+    window = Launcher()
+    if len(sys.argv) > 2 and sys.argv[1] == "--smoke-test":
+        # Проверка собранного exe в CI: окно открылось — пишем отчёт и закрываемся
+        def report():
+            Path(sys.argv[2]).write_text(f"ok {VERSION} {window.play.cget('text')}", encoding="utf-8")
+            window.destroy()
+
+        window.after(4000, report)
+    window.mainloop()
 
 
 if __name__ == "__main__":
