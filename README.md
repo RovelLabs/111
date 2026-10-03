@@ -22,6 +22,22 @@ logs/               лог последнего запуска игры
 launcher.json       ник, память, установленная версия
 ```
 
+## Клиент: меню и модули
+**Правый Shift** — меню клиента (ClickGUI): ЛКМ включает модуль, ПКМ раскрывает настройки, СКМ — назначить
+клавишу (Esc/Delete — убрать). Панели перетаскиваются за заголовок, колесо мыши прокручивает. Пока меню
+открыто, элементы HUD перетаскиваются мышью — позиции сохраняются.
+
+| Категория | Модули |
+|---|---|
+| HUD | Watermark, ArrayList, Keystrokes (с CPS), ArmorHUD, Potions, Coordinates |
+| Визуалы | Crosshair, China Hat, Jump Circles, Hit Particles, Block Overlay, No Hurt Cam |
+| Игрок | ViewModel, Zoom (клавиша C) |
+| Мир | Time Changer, Fullbright (только в одиночной игре) |
+| Разное | Notifications, ClickGUI (акцентный цвет всего клиента) |
+
+Все модули — только визуальные: ничего не дают в бою и не трогают пакеты. Настройки сохраняются
+в `game/pulseclient/configs/default.json`.
+
 ## Фирменная графика
 Фоны главного меню, логотип и иконки рисуются кодом: `python tools/art/generate.py` (нужны `numpy` и `pillow`).
 Скрипт кладёт картинки в `src/main/resources/assets/pulseclient/` (игра) и `launcher/assets/` (лаунчер).

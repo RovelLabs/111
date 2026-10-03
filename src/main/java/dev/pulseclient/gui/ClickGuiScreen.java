@@ -55,10 +55,27 @@ public final class ClickGuiScreen extends Screen {
 
     @Override
     protected void init() {
-        float x = 12;
-        for (Category category : Category.values()) {
-            PANEL_POS.putIfAbsent(category, new float[]{x, 28});
-            x += PANEL_WIDTH + 10;
+        // Раскладка сеткой: если панели не влезают в ширину экрана, переносим на следующую строку
+        float gap = 8;
+        int columns = Math.max(1, (int) ((width - gap) / (PANEL_WIDTH + gap)));
+        float rowY = 8, rowHeight = 0;
+        Category[] all = Category.values();
+        for (int i = 0; i < all.length; i++) {
+            int col = i % columns;
+            if (col == 0 && i > 0) {
+                rowY += rowHeight + gap;
+                rowHeight = 0;
+            }
+            float panelHeight = HEADER + 4 + modules(all[i]).size() * ROW;
+            rowHeight = Math.max(rowHeight, panelHeight);
+            float used = Math.min(columns, all.length) * (PANEL_WIDTH + gap) - gap;
+            float x = (width - used) / 2 + col * (PANEL_WIDTH + gap);
+            PANEL_POS.putIfAbsent(all[i], new float[]{x, rowY});
+        }
+        // Сохранённые позиции могли остаться от большего окна — возвращаем панели на экран
+        for (float[] pos : PANEL_POS.values()) {
+            pos[0] = Math.max(0, Math.min(width - PANEL_WIDTH, pos[0]));
+            pos[1] = Math.max(0, Math.min(height - HEADER, pos[1]));
         }
     }
 
