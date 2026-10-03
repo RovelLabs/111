@@ -14,6 +14,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Точка входа клиента: создаёт ядро и подключает хуки игры к шине событий. */
 public final class VisualClient implements ClientModInitializer {
@@ -22,6 +24,8 @@ public final class VisualClient implements ClientModInitializer {
             .getModContainer("visualclient")
             .map(c -> c.getMetadata().getVersion().getFriendlyString())
             .orElse("dev");
+
+    public static final Logger LOGGER = LoggerFactory.getLogger(NAME);
 
     private static VisualClient instance;
 
@@ -53,6 +57,8 @@ public final class VisualClient implements ClientModInitializer {
         WorldRenderEvents.LAST.register(context ->
                 eventBus.post(new Render3DEvent(context.matrixStack(), context.camera(), context.tickDelta())));
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> configManager.save(ConfigManager.DEFAULT));
+
+        LOGGER.info("{} {} загружен, модулей: {}", NAME, VERSION, moduleManager.getAll().size());
     }
 
     public EventBus getEventBus() {

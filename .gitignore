@@ -10,4 +10,5 @@ __pycache__/
 *.pyc
 dist/
 *.spec
-.jdk/
+launcher/_build.py
+launcher/icon.ico

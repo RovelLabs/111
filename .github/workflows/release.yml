@@ -1,6 +1,7 @@
-# Каждый пуш в основную ветку выпускает новый релиз v<mod_version>.<номер сборки>:
-# клиент, установщик, extras.zip (файлы для папки клиента) и manifest.json.
-# Кнопка «Обновить» в установщике сравнивает установленную версию с последним релизом.
+# Каждый пуш в основную ветку выпускает релиз v<mod_version>.<номер сборки>:
+#   VisualClient.exe — лаунчер (установка, обновление, запуск игры),
+#   visual-client-<версия>.jar — клиент, manifest.json — что качать лаунчеру.
+# Перед публикацией лаунчер на чистой Windows ставит игру с нуля и запускает её с клиентом.
 name: Release
 
 on:
@@ -29,7 +30,7 @@ jobs:
         run: |
           BASE=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
           echo "version=$BASE.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          echo "Версия релиза: $BASE.${{ github.run_number }}"
+          echo "Версия: $BASE.${{ github.run_number }}"
 
   client:
     needs: version
@@ -42,13 +43,31 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew && ./gradlew build --no-daemon -Pmod_version=${{ needs.version.outputs.version }}
+      - name: manifest.json
+        run: |
+          get() { grep "^$1=" gradle.properties | cut -d= -f2 | tr -d '[:space:]'; }
+          VERSION="${{ needs.version.outputs.version }}"
+          JAR="visual-client-$VERSION.jar"
+          mkdir out && cp "build/libs/$JAR" out/
+          cat > out/manifest.json <<JSON
+          {
+            "version": "$VERSION",
+            "minecraft": "$(get minecraft_version)",
+            "loader": "$(get loader_version)",
+            "fabric_api": "$(get fabric_version)",
+            "client_jar": "$JAR",
+            "client_sha256": "$(sha256sum "out/$JAR" | cut -d' ' -f1)",
+            "launcher_exe": "VisualClient.exe"
+          }
+          JSON
+          cat out/manifest.json
       - uses: actions/upload-artifact@v4
         with:
           name: client
-          path: build/libs/visual-client-${{ needs.version.outputs.version }}.jar
+          path: out/*
           if-no-files-found: error
 
-  installer:
+  launcher:
     needs: version
     runs-on: windows-latest
     steps:
@@ -56,21 +75,66 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r installer/requirements.txt pyinstaller==6.11.1
+      - run: pip install -r launcher/requirements.txt pyinstaller==6.11.1
+      - name: Версия и иконка
+        run: |
+          "VERSION = `"${{ needs.version.outputs.version }}`"" | Out-File -Encoding utf8 launcher/_build.py
+          python launcher/brand.py launcher/icon.ico
       - run: >
           pyinstaller --noconfirm --onefile --windowed
-          --name VisualClientInstaller
+          --name VisualClient
+          --icon launcher/icon.ico
           --collect-data customtkinter
-          --paths installer
-          installer/app.py
+          --paths launcher
+          launcher/app.py
       - uses: actions/upload-artifact@v4
         with:
-          name: installer
-          path: dist/VisualClientInstaller.exe
+          name: launcher
+          path: dist/VisualClient.exe
           if-no-files-found: error
 
+  test-windows:
+    needs: client
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: client
+          path: rel
+      - name: Mesa (программный OpenGL — у сборщика нет видеокарты)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo pal1000/mesa-dist-win --pattern "*release-msvc.7z" --dir mesa
+          7z x (Get-ChildItem mesa\*.7z).FullName -omesa\x -y | Out-Null
+          New-Item -ItemType Directory -Force mesa\dlls | Out-Null
+          Copy-Item mesa\x\x64\*.dll mesa\dlls\
+          Get-ChildItem mesa\dlls | Select-Object Name
+      - name: Установка с нуля и запуск игры
+        env:
+          VC_HOME: ${{ runner.temp }}\vc
+          VC_LOCAL_RELEASE: ${{ github.workspace }}\rel
+          VC_MESA_DIR: ${{ github.workspace }}\mesa\dlls
+          VC_SCREENSHOT: ${{ runner.temp }}\screenshot.png
+          GALLIUM_DRIVER: llvmpipe
+          PYTHONIOENCODING: utf-8
+        run: python launcher/ci_test.py 150
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-test
+          path: |
+            ${{ runner.temp }}\screenshot.png
+            ${{ runner.temp }}\vc\ci-game.log
+            ${{ runner.temp }}\vc\game\logs\latest.log
+          if-no-files-found: ignore
+
   release:
-    needs: [version, client, installer]
+    needs: [version, client, launcher, test-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,36 +142,6 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: extras.zip — файлы, которые установщик кладёт в папку клиента
-        run: |
-          python3 - <<'PY'
-          import shutil, zipfile
-          from pathlib import Path
-          with zipfile.ZipFile("dist/extras.zip", "w", zipfile.ZIP_DEFLATED) as zf:
-              for f in sorted(Path("package").rglob("*")):
-                  if f.is_file():
-                      zf.write(f, f.relative_to("package").as_posix())
-              # Батник обновления = тот же install.bat: качает свежий установщик и запускает его
-              zf.write("install.bat", "Обновить клиент.bat")
-              print("\n".join(zf.namelist()))
-          PY
-      - name: manifest.json
-        run: |
-          get() { grep "^$1=" gradle.properties | cut -d= -f2 | tr -d '[:space:]'; }
-          VERSION="${{ needs.version.outputs.version }}"
-          JAR="visual-client-$VERSION.jar"
-          cat > dist/manifest.json <<JSON
-          {
-            "version": "$VERSION",
-            "minecraft": "$(get minecraft_version)",
-            "loader": "$(get loader_version)",
-            "fabric_api": "$(get fabric_version)",
-            "client_jar": "$JAR",
-            "client_sha256": "$(sha256sum "dist/$JAR" | cut -d' ' -f1)",
-            "extras_sha256": "$(sha256sum dist/extras.zip | cut -d' ' -f1)"
-          }
-          JSON
-          cat dist/manifest.json
       - name: Опубликовать релиз
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,13 +149,13 @@ jobs:
           VERSION="${{ needs.version.outputs.version }}"
           CHANGES=$(git log -1 --format='%s')
           cat > notes.md <<NOTES
-          **Установка:** скачайте \`VisualClientInstaller.exe\`, запустите и нажмите «Установить».
-          Затем откройте лаунчер Minecraft и выберите профиль «Visual Client».
+          Что нового: ${CHANGES}
 
-          **Обновление:** запустите «Обновить клиент.bat» из папки клиента (или установщик) и нажмите «Обновить».
+          Как играть: скачайте VisualClient.exe, запустите и нажмите «Установить» — Java, Minecraft 1.20.1, Fabric и клиент скачаются сами. Потом введите ник и нажмите «Играть».
 
-          Изменение: ${CHANGES}
+          Лаунчер обновляется сам при запуске.
           NOTES
+          ls -la dist
           gh release create "v$VERSION" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
