@@ -19,6 +19,8 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
+import zipfile
 import sys
 import urllib.error
 import urllib.parse
@@ -157,6 +159,8 @@ class Release:
     client_url: str
     client_sha256: Optional[str]
     notes: str
+    extras_url: Optional[str] = None
+    extras_sha256: Optional[str] = None
 
 
 def parse_version(text: str) -> tuple:
@@ -187,6 +191,8 @@ def fetch_latest_release() -> Release:
         client_url=assets[client_jar],
         client_sha256=manifest.get("client_sha256"),
         notes=data.get("body") or "",
+        extras_url=assets.get("extras.zip"),
+        extras_sha256=manifest.get("extras_sha256"),
     )
 
 
@@ -298,6 +304,28 @@ def _replace_mod(mods_dir: Path, old_name: Optional[str], new_name: str, url: st
         (mods_dir / old_name).unlink(missing_ok=True)
 
 
+def _install_extras(release: Release, install_dir: Path, log: Log) -> None:
+    """Раскладывает в папку клиента файлы из extras.zip (батник обновления, инструкция и т.п.)."""
+    if not release.extras_url:
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / "extras.zip"
+        _download(release.extras_url, archive, None, release.extras_sha256)
+        root = install_dir.resolve()
+        with zipfile.ZipFile(archive) as zf:
+            for member in zf.infolist():
+                target = (install_dir / member.filename).resolve()
+                if root not in target.parents and target != root:
+                    continue  # защита от путей вида ../../
+                if member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(member) as src, open(target, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                log(f"Файл «{member.filename}» обновлён")
+
+
 def install(install_dir: Optional[Path], progress: Progress, log: Log, force: bool = True) -> InstallState:
     """Установка (force=True) или обновление (force=False) до последнего релиза."""
     previous = load_state()
@@ -330,6 +358,8 @@ def install(install_dir: Optional[Path], progress: Progress, log: Log, force: bo
                       f"{urllib.parse.quote(release.fabric_api)}/{urllib.parse.quote(fabric_api_jar)}")
     _replace_mod(mods_dir, _fabric_api_name(keep_old.fabric_api) if keep_old else None, fabric_api_jar,
                  fabric_api_url, None, stage(0.55, 0.9), log, "Fabric API", force)
+
+    _install_extras(release, install_dir, log)
 
     log("Настраиваю лаунчер Minecraft…")
     version_id = _install_fabric_loader(release, log)

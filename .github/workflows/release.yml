@@ -1,9 +1,13 @@
-# Собирает клиент и установщик и публикует релиз v<mod_version>.
-# Новый релиз = поднять mod_version в gradle.properties и запушить в основную ветку.
+# Каждый пуш в основную ветку выпускает новый релиз v<mod_version>.<номер сборки>:
+# клиент, установщик, extras.zip (файлы для папки клиента) и manifest.json.
+# Кнопка «Обновить» в установщике сравнивает установленную версию с последним релизом.
 name: Release
 
 on:
   push:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
   workflow_dispatch:
 
 permissions:
@@ -14,30 +18,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
+  version:
     if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      exists: ${{ steps.exists.outputs.exists }}
     steps:
       - uses: actions/checkout@v4
       - id: version
-        run: echo "version=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
-      - id: exists
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "v${{ steps.version.outputs.version }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Релиз v${{ steps.version.outputs.version }} уже есть — поднимите mod_version, чтобы выпустить новый."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+          BASE=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          echo "version=$BASE.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Версия релиза: $BASE.${{ github.run_number }}"
 
   client:
-    needs: check
-    if: needs.check.outputs.exists == 'false'
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,16 +41,15 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew && ./gradlew build --no-daemon
+      - run: chmod +x gradlew && ./gradlew build --no-daemon -Pmod_version=${{ needs.version.outputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: client
-          path: build/libs/visual-client-${{ needs.check.outputs.version }}.jar
+          path: build/libs/visual-client-${{ needs.version.outputs.version }}.jar
           if-no-files-found: error
 
   installer:
-    needs: check
-    if: needs.check.outputs.exists == 'false'
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +70,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [check, client, installer]
+    needs: [version, client, installer]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,10 +78,23 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: extras.zip — файлы, которые установщик кладёт в папку клиента
+        run: |
+          python3 - <<'PY'
+          import shutil, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile("dist/extras.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+              for f in sorted(Path("package").rglob("*")):
+                  if f.is_file():
+                      zf.write(f, f.relative_to("package").as_posix())
+              # Батник обновления = тот же install.bat: качает свежий установщик и запускает его
+              zf.write("install.bat", "Обновить клиент.bat")
+              print("\n".join(zf.namelist()))
+          PY
       - name: manifest.json
         run: |
           get() { grep "^$1=" gradle.properties | cut -d= -f2 | tr -d '[:space:]'; }
-          VERSION="${{ needs.check.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           JAR="visual-client-$VERSION.jar"
           cat > dist/manifest.json <<JSON
           {
@@ -96,7 +103,8 @@ jobs:
             "loader": "$(get loader_version)",
             "fabric_api": "$(get fabric_version)",
             "client_jar": "$JAR",
-            "client_sha256": "$(sha256sum "dist/$JAR" | cut -d' ' -f1)"
+            "client_sha256": "$(sha256sum "dist/$JAR" | cut -d' ' -f1)",
+            "extras_sha256": "$(sha256sum dist/extras.zip | cut -d' ' -f1)"
           }
           JSON
           cat dist/manifest.json
@@ -104,14 +112,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ needs.check.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          CHANGES=$(git log -1 --format='%s')
           cat > notes.md <<NOTES
           **Установка:** скачайте \`VisualClientInstaller.exe\`, запустите и нажмите «Установить».
           Затем откройте лаунчер Minecraft и выберите профиль «Visual Client».
 
-          **Обновление:** снова запустите установщик и нажмите «Обновить».
+          **Обновление:** запустите «Обновить клиент.bat» из папки клиента (или установщик) и нажмите «Обновить».
 
-          Коммит: ${GITHUB_SHA}
+          Изменение: ${CHANGES}
           NOTES
           gh release create "v$VERSION" dist/* \
             --repo "$GITHUB_REPOSITORY" \

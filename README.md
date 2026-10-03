@@ -13,11 +13,18 @@
 Обновление: снова запустить установщик и нажать **«Обновить»** — он сверится с последним релизом
 на GitHub и заменит клиент (и при необходимости Fabric / Fabric API).
 
-## Как выпустить новую версию
-Поднять `mod_version` в `gradle.properties` и запушить в основную ветку. GitHub Actions
-(`.github/workflows/release.yml`) соберёт клиент и установщик и опубликует релиз `v<версия>` с файлами
-`visual-client-<версия>.jar`, `VisualClientInstaller.exe` и `manifest.json` — по нему установщик понимает,
-что и откуда качать.
+## Как выпускаются версии
+Релиз выходит **автоматически при каждом пуше** в основную ветку (кроме правок только в `docs/` и `.md`).
+Номер версии — `<mod_version>.<номер сборки>`, например `0.1.7`; `mod_version` в `gradle.properties`
+меняют, когда нужно поднять «крупную» часть версии.
+
+GitHub Actions (`.github/workflows/release.yml`) собирает и выкладывает в релиз:
+- `visual-client-<версия>.jar` — клиент;
+- `VisualClientInstaller.exe` — установщик;
+- `extras.zip` — файлы для папки клиента: всё из `package/` + `Обновить клиент.bat` (копия `install.bat`);
+- `manifest.json` — что и откуда качать установщику (версии Minecraft, Fabric, Fabric API, контрольные суммы).
+
+Кнопка «Обновить» сравнивает установленную версию с последним релизом и докачивает то, что изменилось.
 
 ## Запуск для разработки
 Самый простой способ — дважды кликнуть **`run-dev.bat`**: он сам найдёт Java 17+ или скачает
@@ -43,6 +50,7 @@ src/main/java/dev/visualclient/
 ├── setting/                 Boolean / Number / Mode / Color настройки
 ├── config/                  ConfigManager — профили в .minecraft/visualclient/configs
 └── mixin/                   KeyboardMixin (бинды)
+package/                     файлы, которые установщик кладёт в папку клиента
 installer/                   установщик (Python + CustomTkinter → .exe через PyInstaller)
 ```
 
