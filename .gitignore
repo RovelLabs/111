@@ -6,3 +6,7 @@ run/
 *.iml
 .vscode/
 bin/
+__pycache__/
+*.pyc
+dist/
+*.spec

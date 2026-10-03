@@ -1,0 +1,121 @@
+# Собирает клиент и установщик и публикует релиз v<mod_version>.
+# Новый релиз = поднять mod_version в gradle.properties и запушить в основную ветку.
+name: Release
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      exists: ${{ steps.exists.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "version=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+      - id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.version.outputs.version }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Релиз v${{ steps.version.outputs.version }} уже есть — поднимите mod_version, чтобы выпустить новый."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  client:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew && ./gradlew build --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client
+          path: build/libs/visual-client-${{ needs.check.outputs.version }}.jar
+          if-no-files-found: error
+
+  installer:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r installer/requirements.txt pyinstaller==6.11.1
+      - run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name VisualClientInstaller
+          --collect-data customtkinter
+          --paths installer
+          installer/app.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist/VisualClientInstaller.exe
+          if-no-files-found: error
+
+  release:
+    needs: [check, client, installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: manifest.json
+        run: |
+          get() { grep "^$1=" gradle.properties | cut -d= -f2 | tr -d '[:space:]'; }
+          VERSION="${{ needs.check.outputs.version }}"
+          JAR="visual-client-$VERSION.jar"
+          cat > dist/manifest.json <<JSON
+          {
+            "version": "$VERSION",
+            "minecraft": "$(get minecraft_version)",
+            "loader": "$(get loader_version)",
+            "fabric_api": "$(get fabric_version)",
+            "client_jar": "$JAR",
+            "client_sha256": "$(sha256sum "dist/$JAR" | cut -d' ' -f1)"
+          }
+          JSON
+          cat dist/manifest.json
+      - name: Опубликовать релиз
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.check.outputs.version }}"
+          cat > notes.md <<NOTES
+          **Установка:** скачайте \`VisualClientInstaller.exe\`, запустите и нажмите «Установить».
+          Затем откройте лаунчер Minecraft и выберите профиль «Visual Client».
+
+          **Обновление:** снова запустите установщик и нажмите «Обновить».
+
+          Коммит: ${GITHUB_SHA}
+          NOTES
+          gh release create "v$VERSION" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Visual Client $VERSION" \
+            --notes-file notes.md \
+            --latest

@@ -3,6 +3,21 @@
 Визуальный клиент Minecraft **1.20.1** на Fabric: HUD, эффекты, косметика.
 Без игровых преимуществ — см. [исследование](docs/research-visual-clients.md).
 
+## Установка (для игроков)
+1. Скачать `VisualClientInstaller.exe` из [последнего релиза](https://github.com/RovelLabs/111/releases/latest).
+2. Запустить и нажать **«Установить»**: на рабочем столе появится папка `Visual Client` (папка игры),
+   в лаунчер Minecraft добавится профиль **Visual Client** с Fabric 1.20.1.
+3. Открыть официальный лаунчер Minecraft, выбрать профиль «Visual Client», нажать «Играть».
+
+Обновление: снова запустить установщик и нажать **«Обновить»** — он сверится с последним релизом
+на GitHub и заменит клиент (и при необходимости Fabric / Fabric API).
+
+## Как выпустить новую версию
+Поднять `mod_version` в `gradle.properties` и запушить в основную ветку. GitHub Actions
+(`.github/workflows/release.yml`) соберёт клиент и установщик и опубликует релиз `v<версия>` с файлами
+`visual-client-<версия>.jar`, `VisualClientInstaller.exe` и `manifest.json` — по нему установщик понимает,
+что и откуда качать.
+
 ## Запуск для разработки
 1. Установить **JDK 17 или 21** и **IntelliJ IDEA**.
 2. Открыть папку проекта в IntelliJ, дождаться импорта Gradle (первый раз качается Minecraft — несколько минут).
@@ -22,6 +37,7 @@ src/main/java/dev/visualclient/
 ├── setting/                 Boolean / Number / Mode / Color настройки
 ├── config/                  ConfigManager — профили в .minecraft/visualclient/configs
 └── mixin/                   KeyboardMixin (бинды)
+installer/                   установщик (Python + CustomTkinter → .exe через PyInstaller)
 ```
 
 ## Как добавить модуль
