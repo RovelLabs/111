@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -147,12 +148,20 @@ def is_valid(path: Path, size: Optional[int] = None, sha1: Optional[str] = None)
     return True
 
 
+def _remove_quietly(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass  # файл занят антивирусом или другим процессом — не критично
+
+
 def download(url: str, target: Path, *, sha1: Optional[str] = None, sha256: Optional[str] = None,
              on_bytes: Optional[Callable[[int, int], None]] = None, retries: int = 3) -> None:
     """Скачивает во временный файл, проверяет хэш и переименовывает.
     on_bytes(скачано, всего) вызывается по ходу загрузки."""
     target.parent.mkdir(parents=True, exist_ok=True)
-    partial = target.with_name(target.name + ".part")
+    # Своё имя временного файла на каждый поток — параллельные загрузки не мешают друг другу
+    partial = target.with_name(f"{target.name}.{os.getpid()}-{threading.get_ident()}.part")
     last: Exception | None = None
     for attempt in range(retries):
         try:
@@ -177,12 +186,12 @@ def download(url: str, target: Path, *, sha1: Optional[str] = None, sha256: Opti
             os.replace(partial, target)
             return
         except urllib.error.HTTPError as e:
-            partial.unlink(missing_ok=True)
+            _remove_quietly(partial)
             if e.code < 500:
                 raise LauncherError(f"Не удалось скачать {target.name}: ошибка {e.code}") from e
             last = e
         except (LauncherError, urllib.error.URLError, TimeoutError, OSError) as e:
-            partial.unlink(missing_ok=True)
+            _remove_quietly(partial)
             last = e
         time.sleep(1 + attempt * 2)
     if isinstance(last, LauncherError):

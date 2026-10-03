@@ -105,7 +105,11 @@ class Steps:
 
 
 def _download_many(jobs: list[tuple[str, Path, Optional[str]]], progress: Progress, workers: int = 16) -> None:
-    """Параллельно скачивает файлы (url, путь, sha1)."""
+    """Параллельно скачивает файлы (url, путь, sha1). Один и тот же путь качается один раз."""
+    unique: dict[Path, tuple[str, Path, Optional[str]]] = {}
+    for job in jobs:
+        unique.setdefault(job[1], job)
+    jobs = list(unique.values())
     if not jobs:
         progress(1.0)
         return
