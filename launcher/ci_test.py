@@ -77,8 +77,9 @@ print("----------------------------")
 
 checks = {
     "Fabric загрузил моды": "Loading" in text and "mods" in text,
-    "клиент в списке модов": "visualclient" in text,
-    "клиент инициализирован": f"Visual Client {release.version} " in text,
+    "клиент в списке модов": "pulseclient" in text,
+    "клиент инициализирован": f"Pulse Client {release.version} " in text,
+    "открылось главное меню Pulse": "Pulse главное меню активно" in text,
     "игра не упала": alive or process.returncode == 0,
 }
 for name, ok in checks.items():

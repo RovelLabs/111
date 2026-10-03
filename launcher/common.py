@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from typing import Callable, Optional
 
-APP_NAME = "Visual Client"
+APP_NAME = "Pulse Client"
 REPO = "RovelLabs/111"
 MC_VERSION = "1.20.1"
 
@@ -24,7 +24,7 @@ except ImportError:
     VERSION = "dev"
 
 IS_WINDOWS = sys.platform == "win32"
-USER_AGENT = f"VisualClientLauncher/{VERSION}"
+USER_AGENT = f"PulseClientLauncher/{VERSION}"
 
 
 class LauncherError(Exception):
@@ -57,9 +57,23 @@ def desktop_dir() -> Path:
 
 
 def home_dir() -> Path:
-    """Папка клиента: <Рабочий стол>/Visual Client."""
+    """Папка клиента: <Рабочий стол>/Pulse Client.
+    Если лаунчер запущен из уже установленной папки (там лежит launcher.json) — это она,
+    даже если папку переименовали (например, старая «Visual Client»)."""
     override = os.environ.get("VC_HOME")
-    return Path(override) if override else desktop_dir() / APP_NAME
+    if override:
+        return Path(override)
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        if (exe_dir / "launcher.json").is_file():
+            return exe_dir
+    return desktop_dir() / APP_NAME
+
+
+def asset_path(name: str) -> Path:
+    """Картинки лаунчера: внутри exe (PyInstaller) или рядом со скриптами."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+    return base / "assets" / name
 
 
 def game_dir() -> Path:

@@ -23,7 +23,7 @@ def _hex(color: str) -> tuple[int, int, int]:
 
 
 def make_logo(size: int = 256) -> Image.Image:
-    """Скруглённый квадрат с вертикальным градиентом и буквой V."""
+    """Скруглённый квадрат с вертикальным градиентом и белой линией пульса."""
     scale = 4  # рисуем крупнее и уменьшаем — так края гладкие
     s = size * scale
     top, bottom = _hex("#A47BFF"), _hex(ACCENT_DARK)
@@ -38,13 +38,14 @@ def make_logo(size: int = 256) -> Image.Image:
     logo = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     logo.paste(gradient, (0, 0), mask)
 
-    # Буква V из двух толстых линий
+    # Линия пульса (кардиограмма) — символ Pulse Client
     d = ImageDraw.Draw(logo)
-    w = int(s * 0.11)
-    left, right, top_y, bottom_y = s * 0.27, s * 0.73, s * 0.28, s * 0.74
-    d.line([(left, top_y), (s / 2, bottom_y)], fill="white", width=w, joint="curve")
-    d.line([(s / 2, bottom_y), (right, top_y)], fill="white", width=w, joint="curve")
-    for x, y in ((left, top_y), (right, top_y), (s / 2, bottom_y)):
+    w = max(2, int(s * 0.075))
+    mid = s * 0.54
+    pts = [(s * 0.14, mid), (s * 0.34, mid), (s * 0.41, mid - s * 0.10), (s * 0.48, mid + s * 0.22),
+           (s * 0.56, mid - s * 0.34), (s * 0.63, mid + s * 0.06), (s * 0.69, mid), (s * 0.86, mid)]
+    d.line(pts, fill="white", width=w, joint="curve")
+    for x, y in (pts[0], pts[-1]):
         d.ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill="white")
     return logo.resize((size, size), Image.LANCZOS)
 

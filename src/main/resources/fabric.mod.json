@@ -1,16 +1,17 @@
 {
   "schemaVersion": 1,
-  "id": "visualclient",
+  "id": "pulseclient",
   "version": "${version}",
-  "name": "Visual Client",
+  "name": "Pulse Client",
   "description": "Визуальный клиент Minecraft: HUD, эффекты и косметика без игровых преимуществ.",
   "authors": [],
   "license": "All-Rights-Reserved",
+  "icon": "assets/pulseclient/icons/icon_128.png",
   "environment": "client",
   "entrypoints": {
-    "client": ["dev.visualclient.VisualClient"]
+    "client": ["dev.pulseclient.PulseClient"]
   },
-  "mixins": ["visualclient.mixins.json"],
+  "mixins": ["pulseclient.mixins.json"],
   "depends": {
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",

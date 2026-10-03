@@ -1,6 +1,6 @@
 # Каждый пуш в основную ветку выпускает релиз v<mod_version>.<номер сборки>:
-#   VisualClient.exe — лаунчер (установка, обновление, запуск игры),
-#   visual-client-<версия>.jar — клиент, manifest.json — что качать лаунчеру.
+#   PulseClient.exe — лаунчер (установка, обновление, запуск игры),
+#   pulse-client-<версия>.jar — клиент, manifest.json — что качать лаунчеру.
 # Перед публикацией лаунчер на чистой Windows ставит игру с нуля и запускает её с клиентом.
 name: Release
 
@@ -47,7 +47,7 @@ jobs:
         run: |
           get() { grep "^$1=" gradle.properties | cut -d= -f2 | tr -d '[:space:]'; }
           VERSION="${{ needs.version.outputs.version }}"
-          JAR="visual-client-$VERSION.jar"
+          JAR="pulse-client-$VERSION.jar"
           mkdir out && cp "build/libs/$JAR" out/
           cat > out/manifest.json <<JSON
           {
@@ -57,7 +57,7 @@ jobs:
             "fabric_api": "$(get fabric_version)",
             "client_jar": "$JAR",
             "client_sha256": "$(sha256sum "out/$JAR" | cut -d' ' -f1)",
-            "launcher_exe": "VisualClient.exe"
+            "launcher_exe": "PulseClient.exe"
           }
           JSON
           cat out/manifest.json
@@ -82,9 +82,10 @@ jobs:
           python launcher/brand.py launcher/icon.ico
       - run: >
           pyinstaller --noconfirm --onefile --windowed
-          --name VisualClient
+          --name PulseClient
           --icon launcher/icon.ico
           --collect-data customtkinter
+          --add-data "launcher/assets;assets"
           --paths launcher
           launcher/app.py
       - name: Собранный exe открывается
@@ -92,14 +93,14 @@ jobs:
           VC_HOME: ${{ runner.temp }}\vc-smoke
         run: |
           $report = "$env:RUNNER_TEMP\smoke.txt"
-          $p = Start-Process dist\VisualClient.exe -ArgumentList "--smoke-test", $report -PassThru
+          $p = Start-Process dist\PulseClient.exe -ArgumentList "--smoke-test", $report -PassThru
           if (-not $p.WaitForExit(60000)) { $p.Kill(); throw "exe не закрылся за 60 секунд" }
           if (-not (Test-Path $report)) { throw "exe не открыл окно (нет отчёта)" }
           Get-Content $report
       - uses: actions/upload-artifact@v4
         with:
           name: launcher
-          path: dist/VisualClient.exe
+          path: dist/PulseClient.exe
           if-no-files-found: error
 
   test-windows:
@@ -164,7 +165,7 @@ jobs:
           cat > notes.md <<NOTES
           Что нового: ${CHANGES}
 
-          Как играть: скачайте VisualClient.exe, запустите и нажмите «Установить» — Java, Minecraft 1.20.1, Fabric и клиент скачаются сами. Потом введите ник и нажмите «Играть».
+          Как играть: скачайте PulseClient.exe, запустите и нажмите «Установить» — Java, Minecraft 1.20.1, Fabric и клиент скачаются сами. Потом введите ник и нажмите «Играть».
 
           Лаунчер обновляется сам при запуске.
           NOTES
@@ -172,6 +173,6 @@ jobs:
           gh release create "v$VERSION" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Visual Client $VERSION" \
+            --title "Pulse Client $VERSION" \
             --notes-file notes.md \
             --latest

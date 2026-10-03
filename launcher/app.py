@@ -1,4 +1,4 @@
-"""Visual Client — лаунчер: установка, обновление и запуск игры в одном окне."""
+"""Pulse Client — лаунчер: установка, обновление и запуск игры в одном окне."""
 
 from __future__ import annotations
 
@@ -16,11 +16,13 @@ import traceback
 from pathlib import Path
 
 import customtkinter as ctk
+from PIL import Image, ImageDraw, ImageFilter
 
 import brand
 import game
 import selfupdate
-from common import APP_NAME, IS_WINDOWS, MC_VERSION, VERSION, LauncherError, home_dir, load_settings, save_settings
+from common import (APP_NAME, IS_WINDOWS, MC_VERSION, VERSION, LauncherError, asset_path, home_dir, load_settings,
+                    save_settings)
 
 NICK_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 
@@ -63,15 +65,15 @@ def migrate_old_installer() -> None:
     for name in ("Обновить клиент.bat", "Как играть.txt"):
         (home / name).unlink(missing_ok=True)
     old_mods = home / "mods"
-    if old_mods.is_dir() and all(p.name.startswith(("visual-client-", "fabric-api-")) for p in old_mods.iterdir()):
+    if old_mods.is_dir() and all(p.name.startswith(("pulse-client-", "fabric-api-")) for p in old_mods.iterdir()):
         shutil.rmtree(old_mods, ignore_errors=True)
     if IS_WINDOWS and os.environ.get("APPDATA"):
         appdata = Path(os.environ["APPDATA"])
-        shutil.rmtree(appdata / "VisualClientInstaller", ignore_errors=True)
+        shutil.rmtree(appdata / "PulseClientInstaller", ignore_errors=True)
         profiles = appdata / ".minecraft" / "launcher_profiles.json"
         try:
             data = json.loads(profiles.read_text(encoding="utf-8"))
-            if data.get("profiles", {}).pop("visual-client", None) is not None:
+            if data.get("profiles", {}).pop("pulse-client", None) is not None:
                 profiles.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         except (OSError, ValueError):
             pass
@@ -94,6 +96,41 @@ def install_launcher_copy() -> None:
                        creationflags=subprocess.CREATE_NO_WINDOW, check=False)
 
 
+def make_banner(width: int, height: int) -> Image.Image:
+    """Баннер: случайный фирменный фон, затемнение снизу и логотип Pulse."""
+    import random
+
+    scale = 2  # двойное разрешение для чётких экранов
+    w, h = width * scale, height * scale
+    art = Image.open(asset_path(f"background_{random.randint(1, 3)}.jpg")).convert("RGB")
+    ratio = max(w / art.width, h / art.height)
+    art = art.resize((round(art.width * ratio), round(art.height * ratio)), Image.LANCZOS)
+    left, top = (art.width - w) // 2, (art.height - h) // 2
+    art = art.crop((left, top, left + w, top + h)).convert("RGBA")
+
+    shade = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(shade)
+    for y in range(h):
+        d.line([(0, y), (w, y)], fill=(8, 6, 20, int(150 * (y / h) ** 1.5)))
+    art.alpha_composite(shade)
+
+    # тёмное пятно под логотипом, чтобы он читался на любом фоне
+    blob = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(blob).ellipse([w * 0.22, h * 0.12, w * 0.78, h * 0.88], fill=(6, 4, 18, 190))
+    art.alpha_composite(blob.filter(ImageFilter.GaussianBlur(h * 0.12)))
+
+    logo = Image.open(asset_path("logo.png")).convert("RGBA")
+    lh = int(h * 0.62)
+    logo = logo.resize((round(logo.width * lh / logo.height), lh), Image.LANCZOS)
+    art.alpha_composite(logo, ((w - logo.width) // 2, (h - logo.height) // 2))
+
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=16 * scale, fill=255)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(art, (0, 0), mask)
+    return out
+
+
 # ------------------------------------------------------------------ окно
 
 
@@ -102,8 +139,8 @@ class Launcher(ctk.CTk):
         super().__init__()
         ctk.set_appearance_mode("dark")
         self.title(APP_NAME)
-        self.geometry("900x560")
-        self.minsize(900, 560)
+        self.geometry("940x640")
+        self.minsize(940, 640)
         self.resizable(False, False)
         self.configure(fg_color=brand.BG)
         self._set_icon()
@@ -129,7 +166,7 @@ class Launcher(ctk.CTk):
         if not IS_WINDOWS:
             return
         try:
-            path = Path(tempfile.gettempdir()) / "visual-client-icon.ico"
+            path = Path(tempfile.gettempdir()) / "pulse-client-icon.ico"
             brand.save_icon(str(path))
             self.iconbitmap(str(path))
         except Exception:
@@ -149,7 +186,7 @@ class Launcher(ctk.CTk):
         ctk.CTkLabel(header, image=logo, text="").pack(side="left")
         names = ctk.CTkFrame(header, fg_color="transparent")
         names.pack(side="left", padx=14)
-        ctk.CTkLabel(names, text="VISUAL", font=font(24, "bold"), text_color=brand.TEXT, height=26).pack(anchor="w")
+        ctk.CTkLabel(names, text="PULSE", font=font(24, "bold"), text_color=brand.TEXT, height=26).pack(anchor="w")
         ctk.CTkLabel(names, text="CLIENT", font=font(24, "bold"), text_color=brand.ACCENT, height=26).pack(anchor="w")
 
         ctk.CTkLabel(side, text="ЧТО НОВОГО", font=font(12, "bold"), text_color=brand.MUTED).pack(
@@ -166,9 +203,11 @@ class Launcher(ctk.CTk):
         main = ctk.CTkFrame(self, fg_color="transparent")
         main.pack(side="left", fill="both", expand=True, padx=40, pady=32)
 
-        ctk.CTkLabel(main, text="Добро пожаловать", font=font(30, "bold"), text_color=brand.TEXT).pack(anchor="w")
-        ctk.CTkLabel(main, text=f"Визуальный клиент для Minecraft {MC_VERSION}", font=font(14),
-                     text_color=brand.MUTED).pack(anchor="w", pady=(2, 26))
+        banner = make_banner(540, 180)
+        ctk.CTkLabel(main, image=ctk.CTkImage(light_image=banner, dark_image=banner, size=(540, 180)), text="",
+                     corner_radius=16).pack(anchor="w")
+        ctk.CTkLabel(main, text=f"Свой Minecraft {MC_VERSION}: фирменное меню, визуалы и HUD", font=font(14),
+                     text_color=brand.MUTED).pack(anchor="w", pady=(10, 18))
 
         ctk.CTkLabel(main, text="НИКНЕЙМ", font=font(12, "bold"), text_color=brand.MUTED).pack(anchor="w")
         self.nick = ctk.CTkEntry(main, height=44, corner_radius=10, font=font(15), fg_color=brand.FIELD,
@@ -208,7 +247,7 @@ class Launcher(ctk.CTk):
                      text_color=brand.TEXT)
         ctk.CTkButton(tools, text="Папка игры", command=lambda: open_path(game.game_dir()), **small).pack(
             side="left", padx=(0, 8))
-        self.repair_button = ctk.CTkButton(tools, text="Проверить файлы", command=self._on_repair, **small)
+        self.repair_button = ctk.CTkButton(tools, text="⟳  Обновить", command=self._on_update, **small)
         self.repair_button.pack(side="left")
 
     def _set_notes(self, text: str) -> None:
@@ -256,9 +295,23 @@ class Launcher(ctk.CTk):
         self.settings["ram_gb"] = int(round(self.ram.get()))
         self._start(lambda: self._prepare_and_maybe_launch(launch=not installing))
 
-    def _on_repair(self) -> None:
-        if not self.busy:
-            self._start(lambda: self._prepare_and_maybe_launch(launch=False))
+    def _on_update(self) -> None:
+        """Кнопка «Обновить»: сначала сам лаунчер, потом клиент и все файлы игры."""
+        if self.busy:
+            return
+
+        def job():
+            self.events.put(("status", "Проверяю обновления…"))
+            release = game.fetch_release()
+            self.events.put(("release", release))
+            if selfupdate.needs_update(release):
+                self.events.put(("status", f"Обновляю лаунчер до версии {release.version}…"))
+                selfupdate.apply_update(release, lambda d, t: self.events.put(("progress", d / t if t else 0)))
+            before = self.settings.get("release", {}).get("version")
+            self._prepare_and_maybe_launch(launch=False)
+            return "updated" if before != release.version else "uptodate"
+
+        self._start(job)
 
     def _start(self, job) -> None:
         self.busy = True
@@ -353,12 +406,20 @@ class Launcher(ctk.CTk):
                 if not self._installed():
                     self._set_status("Нажмите «Установить» — всё нужное скачается автоматически (~600 МБ)")
                 elif installed != value.version:
-                    self._set_status(f"Доступна версия {value.version} — обновится при нажатии «Играть»")
+                    self._set_status(f"Доступна версия {value.version} — нажмите «Обновить» "
+                                     "(или она обновится сама при нажатии «Играть»)", brand.ACCENT)
                 else:
                     self._set_status("Готово к игре")
         elif kind == "done":
             self.busy = False
-            if value == "installed":
+            if value == "updated":
+                self.progress.set(1)
+                version = self.settings.get("release", {}).get("version")
+                self._set_status(f"Обновлено до версии {version}!", brand.SUCCESS)
+            elif value == "uptodate":
+                self.progress.set(1)
+                self._set_status("У вас последняя версия, все файлы на месте", brand.SUCCESS)
+            elif value == "installed":
                 self.progress.set(1)
                 self._set_status(f"Установлено! Папка «{APP_NAME}» и ярлык — на рабочем столе. "
                                  "Введите ник и нажмите «Играть».", brand.SUCCESS)

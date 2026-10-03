@@ -78,7 +78,7 @@ def fetch_release() -> Release:
         client_jar=manifest["client_jar"],
         client_url=assets[manifest["client_jar"]],
         client_sha256=manifest.get("client_sha256"),
-        launcher_url=assets.get(manifest.get("launcher_exe", "VisualClient.exe")),
+        launcher_url=assets.get(manifest.get("launcher_exe", "PulseClient.exe")),
         notes=notes,
     )
 
@@ -308,7 +308,7 @@ def ensure_mods(release: Release, progress: Progress, status: Status) -> None:
 
     # Старые версии клиента и Fabric API удаляем, иначе игра загрузит обе
     for jar in mods.glob("*.jar"):
-        if jar.name.startswith("visual-client-") and jar != client:
+        if jar.name.startswith(("pulse-client-", "visual-client-")) and jar != client:
             jar.unlink()
         if jar.name.startswith("fabric-api-") and jar != fabric_api:
             jar.unlink()
@@ -400,7 +400,7 @@ def build_command(release_info: dict, nickname: str, ram_mb: int, console: bool 
         "user_type": "legacy",
         "version_type": APP_NAME,
         "natives_directory": str(natives),
-        "launcher_name": "visual-client",
+        "launcher_name": "pulse-client",
         "launcher_version": VERSION,
         "classpath": os.pathsep.join(classpath),
         "classpath_separator": os.pathsep,

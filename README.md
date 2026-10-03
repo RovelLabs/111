@@ -1,20 +1,20 @@
-# Visual Client
+# Pulse Client
 
-Визуальный клиент Minecraft **1.20.1** на Fabric: HUD, эффекты, косметика.
-Без игровых преимуществ — см. [исследование](docs/research-visual-clients.md).
+Свой Minecraft **1.20.1** на Fabric: фирменное главное меню (фоны, логотип, сплэши, иконка), визуалы и HUD.
+Без игровых преимуществ — см. [исследование](docs/research-pulse-clients.md).
 
 ## Установка (для игроков)
-1. Скачать **`VisualClient.exe`** из [последнего релиза](https://github.com/RovelLabs/111/releases/latest) и запустить.
+1. Скачать **`PulseClient.exe`** из [последнего релиза](https://github.com/RovelLabs/111/releases/latest) и запустить.
 2. Нажать **«Установить»**. Лаунчер сам скачает всё нужное (~600 МБ): Java 17, Minecraft 1.20.1, Fabric,
-   Fabric API и клиент. На рабочем столе появятся папка `Visual Client` и ярлык.
+   Fabric API и клиент. На рабочем столе появятся папка `Pulse Client` и ярлык.
 3. Ввести ник, выбрать память и нажать **«Играть»**.
 
-Официальный лаунчер Minecraft не нужен. Лаунчер **обновляется сам** при запуске, а новая версия клиента
-докачивается при нажатии «Играть». «Проверить файлы» — докачать повреждённые или удалённые файлы.
+Официальный лаунчер Minecraft не нужен. Кнопка **«Обновить»** обновляет сам лаунчер, клиент и докачивает
+недостающие файлы игры. Новая версия также подтягивается сама при запуске и при нажатии «Играть».
 
-Папка `Visual Client` на рабочем столе:
+Папка `Pulse Client` на рабочем столе:
 ```
-Visual Client.exe   лаунчер
+Pulse Client.exe   лаунчер
 game/               миры, настройки, mods/ (клиент и Fabric API)
 minecraft/          файлы игры: versions/, libraries/, assets/
 runtime/            Java
@@ -22,13 +22,19 @@ logs/               лог последнего запуска игры
 launcher.json       ник, память, установленная версия
 ```
 
+## Фирменная графика
+Фоны главного меню, логотип и иконки рисуются кодом: `python tools/art/generate.py` (нужны `numpy` и `pillow`).
+Скрипт кладёт картинки в `src/main/resources/assets/pulseclient/` (игра) и `launcher/assets/` (лаунчер).
+В игре фоны сменяются каждые 12 секунд с плавным переходом и слегка двигаются за мышью
+(`gui/PulseMenu.java`, `mixin/TitleScreenMixin.java`). Сплэш-фразы — `assets/minecraft/texts/splashes.txt`.
+
 ## Как выпускаются версии
 Релиз выходит **автоматически при каждом пуше** в основную ветку (кроме правок только в `docs/` и `.md`).
 Номер версии — `<mod_version>.<номер сборки>`, например `0.1.7`.
 
 GitHub Actions (`.github/workflows/release.yml`):
 1. собирает клиент и `manifest.json` (версии Minecraft, Fabric, Fabric API, контрольная сумма клиента);
-2. собирает `VisualClient.exe` (Python + CustomTkinter → PyInstaller) со своей иконкой;
+2. собирает `PulseClient.exe` (Python + CustomTkinter → PyInstaller) со своей иконкой;
 3. **проверяет на чистой Windows**: ставит всё с нуля и запускает игру с клиентом (`launcher/ci_test.py`);
 4. только если проверка прошла — публикует релиз.
 
@@ -38,20 +44,20 @@ GitHub Actions (`.github/workflows/release.yml`):
 3. Запустить `./gradlew runClient` (Windows: `gradlew.bat runClient`) или конфигурацию **Minecraft Client**.
 4. В игре: слева сверху Watermark, справа список модулей.
 
-Сборка jar: `./gradlew build` → `build/libs/visual-client-<версия>.jar`.
+Сборка jar: `./gradlew build` → `build/libs/pulse-client-<версия>.jar`.
 Для проверки лаунчера без сборки exe: `pip install -r launcher/requirements.txt && python launcher/app.py`.
 
 ## Структура
 ```
-src/main/java/dev/visualclient/
-├── VisualClient.java        точка входа, подключение хуков к шине событий
+src/main/java/dev/pulseclient/
+├── PulseClient.java        точка входа, подключение хуков к шине событий
 ├── event/                   EventBus, @Subscribe, события Tick/Render2D/Render3D/Key
 ├── module/                  Module, Category, ModuleManager (бинды, singleplayer-защита)
 │   └── modules/hud/         Watermark, ModuleList
 ├── setting/                 Boolean / Number / Mode / Color настройки
-├── config/                  ConfigManager — профили в .minecraft/visualclient/configs
+├── config/                  ConfigManager — профили в .minecraft/pulseclient/configs
 └── mixin/                   KeyboardMixin (бинды)
-launcher/                    лаунчер VisualClient.exe (Python + CustomTkinter)
+launcher/                    лаунчер PulseClient.exe (Python + CustomTkinter)
 ```
 
 ## Как добавить модуль
