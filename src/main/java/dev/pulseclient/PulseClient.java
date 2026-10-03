@@ -7,8 +7,14 @@ import dev.pulseclient.event.events.Render3DEvent;
 import dev.pulseclient.event.events.TickEvent;
 import dev.pulseclient.gui.WindowIcon;
 import dev.pulseclient.module.ModuleManager;
+import dev.pulseclient.module.modules.hud.ArmorHud;
 import dev.pulseclient.module.modules.hud.ModuleList;
+import dev.pulseclient.module.modules.hud.PotionHud;
 import dev.pulseclient.module.modules.hud.Watermark;
+import dev.pulseclient.module.modules.misc.Notifications;
+import dev.pulseclient.module.modules.render.CustomCrosshair;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -31,6 +37,7 @@ public final class PulseClient implements ClientModInitializer {
     private static PulseClient instance;
 
     private boolean iconApplied;
+    private boolean welcomed;
     private EventBus eventBus;
     private ModuleManager moduleManager;
     private ConfigManager configManager;
@@ -48,9 +55,13 @@ public final class PulseClient implements ClientModInitializer {
         configManager = new ConfigManager(FabricLoader.getInstance().getGameDir().resolve("pulseclient"), moduleManager);
 
         if (!configManager.load(ConfigManager.DEFAULT)) {
-            // Первый запуск — включаем базовый HUD.
+            // Первый запуск — включаем базовый набор.
             moduleManager.get(Watermark.class).setEnabled(true);
             moduleManager.get(ModuleList.class).setEnabled(true);
+            moduleManager.get(ArmorHud.class).setEnabled(true);
+            moduleManager.get(PotionHud.class).setEnabled(true);
+            moduleManager.get(CustomCrosshair.class).setEnabled(true);
+            moduleManager.get(Notifications.class).setEnabled(true);
         }
 
         // Хуки, которые даёт Fabric API. Клавиатура подключена через KeyboardMixin.
@@ -60,7 +71,15 @@ public final class PulseClient implements ClientModInitializer {
                 iconApplied = true; // окно уже точно создано — ставим свою иконку
                 WindowIcon.apply();
             }
+            if (client.player != null && !welcomed) {
+                welcomed = true;
+                client.inGameHud.getChatHud().addMessage(Text.literal("[Pulse] ").formatted(Formatting.LIGHT_PURPLE)
+                        .append(Text.literal("Меню клиента — правый Shift. Элементы HUD можно двигать мышкой, пока меню открыто.")
+                                .formatted(Formatting.GRAY)));
+            }
+            if (client.player == null) welcomed = false;
         });
+        if (SelfTest.enabled()) eventBus.subscribe(new SelfTest());
         HudRenderCallback.EVENT.register((context, tickDelta) -> eventBus.post(new Render2DEvent(context, tickDelta)));
         WorldRenderEvents.LAST.register(context ->
                 eventBus.post(new Render3DEvent(context.matrixStack(), context.camera(), context.tickDelta())));

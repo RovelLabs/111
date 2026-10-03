@@ -1,49 +1,68 @@
 package dev.pulseclient.module.modules.hud;
 
 import dev.pulseclient.PulseClient;
-import dev.pulseclient.event.Subscribe;
-import dev.pulseclient.event.events.Render2DEvent;
-import dev.pulseclient.module.Category;
+import dev.pulseclient.module.HudModule;
 import dev.pulseclient.module.Module;
+import dev.pulseclient.render.Animation;
+import dev.pulseclient.render.RenderUtil;
+import dev.pulseclient.render.Theme;
 import dev.pulseclient.setting.BooleanSetting;
-import dev.pulseclient.setting.ColorSetting;
 import net.minecraft.client.gui.DrawContext;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/** Список включённых модулей в правом верхнем углу, от длинных к коротким. */
-public final class ModuleList extends Module {
+/** ArrayList — список включённых модулей с переливающимся цветом и плавным появлением. */
+public final class ModuleList extends HudModule {
+    private static final float LINE = 11;
+
     private final BooleanSetting background = add(new BooleanSetting("Фон", true));
-    private final BooleanSetting hideHud = add(new BooleanSetting("Скрывать HUD-модули", false));
-    private final ColorSetting color = add(new ColorSetting("Цвет", 0xFF8A5CF6));
+    private final BooleanSetting bar = add(new BooleanSetting("Полоска", true));
+    private final BooleanSetting hideHud = add(new BooleanSetting("Скрывать HUD-модули", true));
+    private final Map<Module, Animation> slide = new HashMap<>();
 
     public ModuleList() {
-        super("ModuleList", "Список включённых модулей", Category.HUD);
+        super("ArrayList", "Список включённых модулей", 0.995f, 0.008f);
     }
 
-    @Subscribe
-    private void onRender2D(Render2DEvent event) {
-        if (mc.options.debugEnabled) return;
-
-        List<String> names = PulseClient.get().getModuleManager().getAll().stream()
-                .filter(Module::isEnabled)
-                .filter(m -> !(hideHud.get() && m.getCategory() == Category.HUD))
-                .map(Module::getName)
-                .sorted(Comparator.comparingInt((String n) -> mc.textRenderer.getWidth(n)).reversed())
+    private List<Module> shown() {
+        return PulseClient.get().getModuleManager().getAll().stream()
+                .filter(m -> !m.isHidden())
+                .filter(m -> !(hideHud.get() && m instanceof HudModule))
+                .filter(m -> m.isEnabled() || slide.containsKey(m) && slide.get(m).get() > 0.02f)
+                .sorted(Comparator.comparingInt((Module m) -> mc.textRenderer.getWidth(m.getName())).reversed())
                 .toList();
+    }
 
-        DrawContext context = event.context();
-        int screenWidth = context.getScaledWindowWidth();
-        int lineHeight = mc.textRenderer.fontHeight + 2;
-        int y = 2;
-        for (String name : names) {
-            int width = mc.textRenderer.getWidth(name);
-            int x = screenWidth - width - 4;
-            if (background.get()) context.fill(x - 2, y, screenWidth, y + lineHeight, 0x90000000);
-            context.fill(screenWidth - 1, y, screenWidth, y + lineHeight, color.get());
-            context.drawTextWithShadow(mc.textRenderer, name, x, y + 2, color.get());
-            y += lineHeight;
+    @Override
+    public float getWidth() {
+        return Math.max(60, shown().stream().mapToInt(m -> mc.textRenderer.getWidth(m.getName())).max().orElse(0) + 10);
+    }
+
+    @Override
+    public float getHeight() {
+        return Math.max(LINE, shown().size() * LINE);
+    }
+
+    @Override
+    protected void render(DrawContext context, float x, float y, float tickDelta) {
+        boolean right = isOnRightSide();
+        float width = getWidth();
+        float yy = y;
+        int index = 0;
+        for (Module m : shown()) {
+            float t = slide.computeIfAbsent(m, k -> new Animation(0, 14)).setTarget(m.isEnabled() ? 1 : 0).get();
+            String name = m.getName();
+            float w = mc.textRenderer.getWidth(name) + 8;
+            float bx = right ? x + width - w * t : x - w + w * t;
+            int color = Theme.wave(index * 0.07f);
+            if (background.get()) RenderUtil.rect(context, bx, yy, w, LINE * t, Theme.HUD_BG);
+            if (bar.get()) RenderUtil.rect(context, right ? x + width - 1.5f : x, yy, 1.5f, LINE * t, color);
+            if (t > 0.5f) context.drawTextWithShadow(mc.textRenderer, name, (int) (bx + 4), (int) (yy + 2), color);
+            yy += LINE * t;
+            index++;
         }
     }
 }

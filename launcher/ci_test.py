@@ -51,18 +51,23 @@ if mesa:
 
 game.ensure_default_options()
 command = game.build_command(info, "CiTester", 2048, console=True)
+command.insert(1, "-Dpulseclient.selftest=true")  # клиент сам создаст мир, включит модули и откроет меню
 log_path = home_dir() / "ci-game.log"
 with open(log_path, "w", encoding="utf-8", errors="replace") as log:
     process = subprocess.Popen(command, cwd=str(game.game_dir()), stdout=log, stderr=subprocess.STDOUT)
-    menu_seen_at = None
+    seen = set()
+    markers = {"Pulse главное меню активно": "главное меню", "Pulse self-test: в мире": "вошли в мир",
+               "Pulse self-test OK": "автотест в мире"}
     for second in range(wait):
         if process.poll() is not None:
             break
-        if menu_seen_at is None and "Pulse главное меню активно" in log_path.read_text(encoding="utf-8", errors="replace"):
-            menu_seen_at = second
-            print(f"Главное меню открылось через {second} с", flush=True)
-        if menu_seen_at is not None and second - menu_seen_at >= 15:
-            break  # дали меню поработать 15 секунд (смена фонов, анимация)
+        current = log_path.read_text(encoding="utf-8", errors="replace")
+        for marker, name in markers.items():
+            if marker not in seen and marker in current:
+                seen.add(marker)
+                print(f"{second:4d} с: {name}", flush=True)
+        if "Pulse self-test OK" in seen:
+            break
         time.sleep(1)
     # ждём, пока игра дойдёт до главного меню (на программном OpenGL это долго), но не дольше wait
     alive = process.poll() is None
@@ -100,6 +105,9 @@ checks = {
     "клиент в списке модов": "pulseclient" in text,
     "клиент инициализирован": f"Pulse Client {release.version} " in text,
     "открылось главное меню Pulse": "Pulse главное меню активно" in text,
+    "создан мир, включены все модули": "Pulse self-test: в мире" in text,
+    "ClickGUI открылся, автотест пройден": "Pulse self-test OK" in text,
+    "нет ошибок mixin": "Mixin apply failed" not in text and "InvalidInjectionException" not in text,
     "игра не упала": alive or process.returncode == 0,
 }
 for name, ok in checks.items():

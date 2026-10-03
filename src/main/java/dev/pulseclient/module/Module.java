@@ -1,6 +1,7 @@
 package dev.pulseclient.module;
 
 import dev.pulseclient.PulseClient;
+import dev.pulseclient.event.events.ModuleToggleEvent;
 import dev.pulseclient.setting.Setting;
 import net.minecraft.client.MinecraftClient;
 import org.lwjgl.glfw.GLFW;
@@ -61,6 +62,12 @@ public abstract class Module {
             PulseClient.get().getEventBus().unsubscribe(this);
             onDisable();
         }
+        if (!isHidden()) PulseClient.get().getEventBus().post(new ModuleToggleEvent(this, this.enabled));
+    }
+
+    /** Служебные модули (ClickGUI) не показываются в списке модулей и уведомлениях. */
+    public boolean isHidden() {
+        return false;
     }
 
     public final void toggle() {

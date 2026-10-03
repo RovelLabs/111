@@ -134,7 +134,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           pip install pillow
-          python launcher/ci_test.py 420
+          python launcher/ci_test.py 900
       - if: always()
         uses: actions/upload-artifact@v4
         with:
