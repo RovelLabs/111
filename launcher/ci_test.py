@@ -53,10 +53,17 @@ command = game.build_command(info, "CiTester", 2048, console=True)
 log_path = home_dir() / "ci-game.log"
 with open(log_path, "w", encoding="utf-8", errors="replace") as log:
     process = subprocess.Popen(command, cwd=str(game.game_dir()), stdout=log, stderr=subprocess.STDOUT)
-    for _ in range(wait):
+    menu_seen_at = None
+    for second in range(wait):
         if process.poll() is not None:
             break
+        if menu_seen_at is None and "Pulse главное меню активно" in log_path.read_text(encoding="utf-8", errors="replace"):
+            menu_seen_at = second
+            print(f"Главное меню открылось через {second} с", flush=True)
+        if menu_seen_at is not None and second - menu_seen_at >= 15:
+            break  # дали меню поработать 15 секунд (смена фонов, анимация)
         time.sleep(1)
+    # ждём, пока игра дойдёт до главного меню (на программном OpenGL это долго), но не дольше wait
     alive = process.poll() is None
     shot = os.environ.get("VC_SCREENSHOT")
     if alive and shot and sys.platform == "win32":
@@ -67,6 +74,18 @@ with open(log_path, "w", encoding="utf-8", errors="replace") as log:
                         "$g=[Drawing.Graphics]::FromImage($bmp);"
                         "$g.CopyFromScreen($b.Location,[Drawing.Point]::Empty,$b.Size);"
                         f"$bmp.Save('{shot}')"], check=False)
+        try:  # уменьшенная копия скриншота прямо в лог — чтобы посмотреть без скачивания артефактов
+            import base64, io
+            from PIL import Image
+            small = Image.open(shot).convert("RGB")
+            small.thumbnail((640, 360))
+            buf = io.BytesIO()
+            small.save(buf, "JPEG", quality=70)
+            print("SCREENSHOT-BASE64-BEGIN")
+            print(base64.b64encode(buf.getvalue()).decode())
+            print("SCREENSHOT-BASE64-END")
+        except Exception as e:
+            print("скриншот в лог не попал:", e)
     if alive:
         process.kill()
 

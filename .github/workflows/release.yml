@@ -132,7 +132,9 @@ jobs:
           VC_SCREENSHOT: ${{ runner.temp }}\screenshot.png
           GALLIUM_DRIVER: llvmpipe
           PYTHONIOENCODING: utf-8
-        run: python launcher/ci_test.py 150
+        run: |
+          pip install pillow
+          python launcher/ci_test.py 420
       - if: always()
         uses: actions/upload-artifact@v4
         with:
